@@ -383,6 +383,56 @@ func JudgeNextWithNoActiveProjects(context *util.Context) util.Result {
 	return util.ResultOk()
 }
 
+// JudgeNextWhileNotRunning verifies that asking for a project while judging is paused or
+// in deliberation returns no project and leaves the server responsive to later requests
+func JudgeNextWhileNotRunning(context *util.Context) util.Result {
+	token, result := createNamedJudge(context, "next_not_running@example.com", "Next Not Running Judge")
+	if !result.Success {
+		return result
+	}
+	auth := util.JudgeAuth(token)
+
+	assertNoProject := func(state string) util.Result {
+		nextRes := util.PostRequest(context.Logger, "/judge/next", nil, auth)
+		if util.ExtractString(nextRes, "project_id") != "" {
+			return util.NewResult(false, "POST /judge/next returned a project during "+state+": "+nextRes)
+		}
+
+		status, _ := util.GetRequestWithStatus(context.Logger, "/admin/started", util.DefaultAuth())
+		return util.AssertStatus(status, 200, "Server stopped responding after POST /judge/next during "+state)
+	}
+
+	// Paused
+	pauseRes := util.PostRequest(context.Logger, "/admin/clock/pause", nil, util.AdminAuth())
+	if !util.IsOk(pauseRes) {
+		return util.NewResult(false, "Failed to pause clock: "+pauseRes)
+	}
+	if result := assertNoProject("a pause"); !result.Success {
+		return result
+	}
+
+	// Deliberation
+	startRes := util.PostRequest(context.Logger, "/admin/deliberation", util.H{"start": true}, util.AdminAuth())
+	if !util.IsOk(startRes) {
+		return util.NewResult(false, "Failed to start deliberation: "+startRes)
+	}
+	if result := assertNoProject("deliberation"); !result.Success {
+		return result
+	}
+
+	// Put judging back for later tests
+	endRes := util.PostRequest(context.Logger, "/admin/deliberation", util.H{"start": false}, util.AdminAuth())
+	if !util.IsOk(endRes) {
+		return util.NewResult(false, "Failed to end deliberation: "+endRes)
+	}
+	unpauseRes := util.PostRequest(context.Logger, "/admin/clock/unpause", nil, util.AdminAuth())
+	if !util.IsOk(unpauseRes) {
+		return util.NewResult(false, "Failed to unpause clock: "+unpauseRes)
+	}
+
+	return util.ResultOk()
+}
+
 // --- Helpers ---
 
 // countFlags counts the number of flag objects in a JSON array response

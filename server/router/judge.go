@@ -409,10 +409,12 @@ func GetNextJudgeProject(ctx *gin.Context) {
 		// If the clock is paused, return an empty object
 		// This is to ensure that no projects are gotten if the clock is paused
 		state.Clock.Mutex.Lock()
-		if !state.Clock.State.Running || options.Deliberation {
+		running := state.Clock.State.Running
+		state.Clock.Mutex.Unlock()
+		if !running || options.Deliberation {
+			ctx.JSON(http.StatusOK, gin.H{})
 			return nil
 		}
-		state.Clock.Mutex.Unlock()
 
 		project, err := judging.PickNextProject(state.Db, sc, judge, state.Comps)
 		if err != nil {
