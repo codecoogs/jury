@@ -82,6 +82,7 @@ func RunTests(context *util.Context) {
 				"Star Project":                   StarProject,
 				"Judge Notes Update":             JudgeNotesUpdate,
 				"Judge Next With No Projects":    JudgeNextWithNoActiveProjects,
+				"Judge Next While Not Running":   JudgeNextWhileNotRunning,
 			},
 		},
 		{
